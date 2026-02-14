@@ -68,10 +68,17 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
                     <motion.g
                         key={blob.id}
                         initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }} // We calculate position in SVG props, but framer requires initial logic
+                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }} 
                         exit={{ opacity: 0, scale: 0 }}
                     >
-                         {/* Link line to server? Maybe too cluttered. Let's just color match. */}
+                        {/* Ping animation for entry */}
+                        <motion.circle 
+                            cx={x} cy={y} r="15" 
+                            stroke={color} strokeWidth="2" fill="none"
+                            initial={{ scale: 0.5, opacity: 1 }}
+                            animate={{ scale: 2, opacity: 0 }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                        />
                         <circle cx={x} cy={y} r="5" fill={color} stroke="black" strokeWidth="1" />
                         <text x={x} y={y + 12} textAnchor="middle" fontSize="8" fill="#374151">{blob.id}</text>
                     </motion.g>

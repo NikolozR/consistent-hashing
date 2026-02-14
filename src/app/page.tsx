@@ -4,6 +4,7 @@ import { useConsistentHashing } from "@/hooks/useConsistentHashing";
 import { RingVisualization } from "@/components/RingVisualization";
 import { Controls } from "@/components/Controls";
 import { EducationalContent } from "@/components/EducationalContent";
+import { ServerInventory } from "@/components/ServerInventory";
 
 export default function Home() {
   const { 
@@ -30,38 +31,44 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Top: Concise Education */}
+        <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+            <EducationalContent />
+        </section>
+
+        {/* Main Content: Visualization + Inventory */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
           
-          {/* Left Column: Visualization & Controls (Sticky) */}
-          <div className="lg:col-span-5 space-y-8">
-             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 p-6 sticky top-8">
-                <h2 className="text-lg font-semibold text-gray-800 mb-6 text-center">Ring Topology</h2>
-                
+          {/* Left: Visualization & Controls */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+             {/* Ring Viz */}
+             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 p-6 flex flex-col items-center">
+                <h2 className="text-lg font-semibold text-gray-800 mb-6">Ring Topology</h2>
                 <RingVisualization 
                     servers={servers} 
                     virtualNodes={virtualNodes} 
                 />
-                
-                <div className="mt-8">
-                    <Controls 
-                        onAddServer={addServer}
-                        onRemoveServer={removeServer}
-                        onAddBlob={addBlob}
-                        onRemoveBlob={removeBlob}
-                        serverList={servers}
-                    />
-                </div>
+             </div>
+
+             {/* Controls Area */}
+             <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                <Controls 
+                    onAddServer={addServer}
+                    onRemoveServer={removeServer}
+                    onAddBlob={addBlob}
+                    onRemoveBlob={removeBlob}
+                    serverList={servers}
+                />
              </div>
           </div>
 
-          {/* Right Column: Educational Content */}
-          <div className="lg:col-span-7">
-             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 lg:p-12">
-                <EducationalContent />
-             </div>
+          {/* Right: Server Inventory (Visual Explanation) */}
+          <div className="lg:col-span-4 h-full">
+             <ServerInventory servers={servers} />
           </div>
         </div>
+
       </div>
     </main>
   );

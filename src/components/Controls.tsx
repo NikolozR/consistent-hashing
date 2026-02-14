@@ -50,14 +50,27 @@ export const Controls: React.FC<ControlsProps> = ({
                 onChange={e => setServerId(parseInt(e.target.value) || '')}
             />
             <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600">Weight (Virtual Nodes):</label>
-                <input 
-                    type="number" 
-                    min="1" max="10"
-                    className="w-20 text-sm p-2 border rounded-md"
-                    value={weight}
-                    onChange={e => setWeight(parseInt(e.target.value))}
-                />
+                <div className="flex-1">
+                    <label className="text-xs text-gray-600 block mb-1">Weight</label>
+                    <input 
+                        type="number" 
+                        min="1" max="10"
+                        className="w-full text-sm p-2 border rounded-md"
+                        value={weight}
+                        onChange={e => setWeight(parseInt(e.target.value))}
+                    />
+                </div>
+                {serverId !== '' && (
+                    <div className="flex-1">
+                        <label className="text-xs text-xs text-gray-500 block mb-1">Hash Position</label>
+                        <div className="text-xs font-mono bg-indigo-50 text-indigo-700 p-2 rounded border border-indigo-100 truncate shadow-sm">
+                             <span className="opacity-50">
+                                 ({serverId} * <abbr title="Golden Ratio Constant (2654435761) used to spread sequential IDs" className="no-underline cursor-help font-bold">φ</abbr>) % 360 = 
+                             </span>
+                             <span className="font-bold">{calculateSimpleHash(serverId)}°</span>
+                        </div>
+                    </div>
+                )}
             </div>
             <button 
                 type="submit" 
@@ -83,6 +96,12 @@ export const Controls: React.FC<ControlsProps> = ({
                 value={blobData}
                 onChange={e => setBlobData(e.target.value)}
             />
+            {blobData && (
+                 <div className="text-xs font-mono text-emerald-600 mt-1 flex justify-end gap-1 px-1">
+                    <span className="text-emerald-400">hash("{blobData}") % 360 = </span>
+                    <span className="font-bold">{calculateStringHash(blobData)}°</span>
+                 </div>
+            )}
             <button 
                 type="submit" 
                 className="w-full bg-emerald-600 text-white text-sm py-2 rounded-md hover:bg-emerald-700 flex items-center justify-center gap-2"
@@ -116,3 +135,19 @@ export const Controls: React.FC<ControlsProps> = ({
     </div>
   );
 };
+
+// Helper functions for preview (must match backend logic roughly for education)
+function calculateSimpleHash(id: number): number {
+    const hash = (id * 2654435761) % 4294967296; 
+    return Math.floor((Math.abs(hash) / 4294967296) * 360);
+}
+
+function calculateStringHash(input: string): number {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+        const char = input.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash) % 360;
+}
