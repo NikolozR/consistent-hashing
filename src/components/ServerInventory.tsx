@@ -3,6 +3,7 @@
 import React from 'react';
 import { Server } from '@/lib/consistent-hashing/Server';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Server as ServerIcon, Database } from 'lucide-react';
 
 interface ServerInventoryProps {
   servers: Server[];
@@ -16,34 +17,37 @@ export const ServerInventory: React.FC<ServerInventoryProps> = ({ servers }) => 
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 h-full flex flex-col">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        Server Statistics
+    <div className="bg-slate-900 rounded-xl shadow-lg shadow-black/20 border border-slate-800 p-6 h-full flex flex-col">
+      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <ServerIcon className="w-4 h-4 text-cyan-500" /> System Stats
       </h3>
       
-      <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+      <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
         <AnimatePresence>
           {servers.length === 0 && (
-             <p className="text-xs text-gray-400 italic text-center py-4">No active servers</p>
+             <div className="flex flex-col items-center justify-center h-40 text-slate-500 space-y-2">
+                <Database className="w-8 h-8 opacity-20" />
+                <p className="text-xs italic">System offline</p>
+             </div>
           )}
           {servers.map((server) => (
             <motion.div
               key={server.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+              className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/50 hover:border-slate-700 transition-colors"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
                   <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: getServerColor(server.id) }} 
+                    className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]" 
+                    style={{ backgroundColor: getServerColor(server.id), color: getServerColor(server.id) }} 
                   />
-                  <span className="font-medium text-sm text-gray-700">Server {server.id}</span>
+                  <span className="font-bold text-sm text-slate-200">Node {server.id}</span>
                 </div>
-                <span className="text-xs font-mono text-gray-500 bg-white px-2 py-0.5 rounded border">
-                   {server.blobs.length} items
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                   {server.blobs.length} Items
                 </span>
               </div>
               
@@ -54,7 +58,7 @@ export const ServerInventory: React.FC<ServerInventoryProps> = ({ servers }) => 
                         key={blob.id}
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-white border border-gray-200 text-gray-600 truncate max-w-[100px]"
+                        className="inline-flex items-center px-1.5 py-1 rounded text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300 truncate max-w-[100px] hover:border-slate-600 transition-colors cursor-default"
                         title={blob.id}
                     >
                       {blob.id}
@@ -62,7 +66,9 @@ export const ServerInventory: React.FC<ServerInventoryProps> = ({ servers }) => 
                   ))}
                 </div>
               ) : (
-                <p className="text-[10px] text-gray-400 italic pl-5">Empty</p>
+                <div className="text-[10px] text-slate-500 italic pl-5 flex items-center gap-2">
+                    <span className="w-1 h-1 rounded-full bg-slate-600"></span> Idle
+                </div>
               )}
             </motion.div>
           ))}
