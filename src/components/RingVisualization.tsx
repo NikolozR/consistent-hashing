@@ -7,72 +7,73 @@ import { Server, BlobData } from '@/lib/consistent-hashing/Server';
 interface RingVisualizationProps {
   servers: Server[];
   virtualNodes: { hash: number, serverId: number }[];
+  animationEpoch?: number;
 }
 
-export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, virtualNodes }) => {
-  const radius = 180; // Increased radius
-  const center = 250; // Adjusted center for 500x500
+export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, virtualNodes, animationEpoch = 0 }) => {
+  const radius = 180;
+  const center = 250;
   
-  // Helper to convert degree to cartesian
   const getCoordinates = (degree: number, r: number) => {
-    const radian = (degree - 90) * (Math.PI / 180); // -90 to start at top
+    const radian = (degree - 90) * (Math.PI / 180);
     return {
       x: center + r * Math.cos(radian),
       y: center + r * Math.sin(radian),
     };
   };
 
-  // Traveling blobs state
-  const [travelingBlobs, setTravelingBlobs] = React.useState<(BlobData & { serverId: number, targetHash: number })[]>([]);
-  const prevBlobsRef = React.useRef(new Set<string>());
+  const prevBlobsMapRef = React.useRef(new Map<string, { serverId: number, targetHash: number }>());
+  const [travelingBlobs, setTravelingBlobs] = React.useState<(BlobData & { serverId: number, targetHash: number, startHash?: number })[]>([]);
 
-  // Collect all current blobs
   const allBlobs = useMemo(() => {
      return servers.flatMap(s => s.blobs.map(b => ({ ...b, serverId: s.id })));
   }, [servers]);
 
-  // Detect new blobs and trigger animation
+  const getTargetHash = (blobHash: number, sId: number) => {
+      let targetNode = virtualNodes.find(vn => vn.hash >= blobHash && vn.serverId === sId);
+      if (!targetNode) {
+          const sortedNodes = [...virtualNodes].sort((a, b) => a.hash - b.hash);
+          const found = sortedNodes.find(vn => vn.hash >= blobHash);
+          targetNode = found || sortedNodes[0];
+      }
+      return targetNode?.hash || 0;
+  };
+
+  const prevEpochRef = React.useRef(animationEpoch);
+
   React.useEffect(() => {
-    const newBlobs = allBlobs.filter(b => !prevBlobsRef.current.has(b.id));
-    
-    if (newBlobs.length > 0) {
-        // Find target hash for each blob (the hash of the node it ended up on)
-        // We know the serverId, so we can look up the virtual nodes for that server
-        // and find the one that is "closest" clockwise from the blob hash.
-        // HOWEVER, the backend already assigned it. We can just animate to the blob's CURRENT calculated target.
-        // But `virtualNodes` has all nodes.
-        
-        const blobsWithTarget = newBlobs.map(blob => {
-             // Find the specific virtual node this blob mapped to.
-             // The backend logic is: find first node where node.hash >= blob.hash.
-             // If not found, wrap around to first node.
-             // Since we have the serverId, we technically know where it went, but for visual accuracy
-             // we want the exact virtual node degree.
-             
-             let targetNode = virtualNodes.find(vn => vn.hash >= blob.hash && vn.serverId === blob.serverId);
-             
-             // If not found directly clockwise (wrap around case), find the first node of this server (smallest hash)
-             // But valid ring logic might have mapped it to a different server if we are inconsistent.
-             // Assuming consistent state:
-             if (!targetNode) {
-                 // Try finding ANY node for this server that acts as the wrap-around handler
-                 // Actually, if it wrapped around, it must be the node with the smallest hash on the ring that belongs to this server?
-                 // Wait, strict Consistent Hashing:
-                 // 1. Sort all virtual nodes.
-                 // 2. Find first one > blob.hash.
-                 // That checks out.
-                 const sortedNodes = [...virtualNodes].sort((a, b) => a.hash - b.hash);
-                 const found = sortedNodes.find(vn => vn.hash >= blob.hash);
-                 targetNode = found || sortedNodes[0];
-             }
+    const currentBlobsMap = new Map<string, { serverId: number, targetHash: number }>();
 
-            return { ...blob, targetHash: targetNode?.hash || 0 };
-        });
+    const suppressAnimation = prevEpochRef.current !== animationEpoch;
+    prevEpochRef.current = animationEpoch;
 
-        setTravelingBlobs(prev => [...prev, ...blobsWithTarget]);
-        newBlobs.forEach(b => prevBlobsRef.current.add(b.id));
+    const newTravelingBlobs: (BlobData & { serverId: number, targetHash: number, startHash?: number })[] = [];
+
+    allBlobs.forEach(blob => {
+        const targetHash = getTargetHash(blob.hash, blob.serverId);
+        currentBlobsMap.set(blob.id, { serverId: blob.serverId, targetHash });
+
+        if (!suppressAnimation) {
+            const prevData = prevBlobsMapRef.current.get(blob.id);
+
+            if (!prevData) {
+                newTravelingBlobs.push({ ...blob, targetHash });
+            } else if (prevData.serverId !== blob.serverId) {
+                newTravelingBlobs.push({ 
+                    ...blob, 
+                    targetHash, 
+                    startHash: prevData.targetHash 
+                });
+            }
+        }
+    });
+
+    if (newTravelingBlobs.length > 0) {
+        setTravelingBlobs(prev => [...prev, ...newTravelingBlobs]);
     }
-  }, [allBlobs, virtualNodes]);
+    
+    prevBlobsMapRef.current = currentBlobsMap;
+  }, [allBlobs, virtualNodes, animationEpoch]);
 
   const removeTravelingBlob = (id: string) => {
     setTravelingBlobs(prev => prev.filter(b => b.id !== id));
@@ -81,16 +82,13 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
   return (
     <div className="relative w-[500px] h-[500px] mx-auto scale-90 sm:scale-100 transition-transform">
       <svg width="500" height="500" viewBox="0 0 500 500" className="overflow-visible">
-        {/* Ring Background */}
         <circle cx={center} cy={center} r={radius} stroke="#1e293b" strokeWidth="6" fill="transparent" />
         <circle cx={center} cy={center} r={radius} stroke="#334155" strokeWidth="1" strokeDasharray="4 4" fill="transparent" opacity="0.5" />
 
-        {/* Center label */}
         <text x={center} y={center} textAnchor="middle" dy=".3em" fontSize="14" fill="#64748b" letterSpacing="0.2em" className="font-mono font-bold opacity-50">
             HASH RING
         </text>
 
-        {/* Virtual Nodes */}
         <AnimatePresence>
           {virtualNodes.map((vn) => {
             const { x, y } = getCoordinates(vn.hash, radius);
@@ -104,21 +102,15 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
                 exit={{ opacity: 0, scale: 0 }}
                 style={{ originX: "50%", originY: "50%" }}
               >
-                {/* Connection line to center (subtle) */}
                 <line x1={center} y1={center} x2={x} y2={y} stroke={color} strokeWidth="1" strokeDasharray="2 4" opacity="0.2" />
-                
-                {/* Node Point */}
                 <circle cx={x} cy={y} r="8" fill={color} stroke="#0f172a" strokeWidth="3" />
-                
-                {/* Label */}
                 <text x={x} y={y - 20} textAnchor="middle" fontSize="12" 
-                      fill="#cbd5e1" fontWeight="bold" className="font-mono">{vn.hash}°</text>
+                      fill="#cbd5e1" fontWeight="bold" className="font-mono">#{vn.serverId}</text>
               </motion.g>
             );
           })}
         </AnimatePresence>
 
-        {/* Traveling Blobs Animation */}
         <AnimatePresence>
             {travelingBlobs.map((blob) => (
                 <TravelingBlob 
@@ -131,72 +123,51 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
             ))}
         </AnimatePresence>
       </svg>
-      
-      {/* Legend / Stats overlay if needed */}
     </div>
   );
 };
 
-// Simple hash-to-color for consistent visualization
 function getServerColor(id: number) {
-    // Generate neon-ish colors for dark mode
     const hue = (id * 137.508) % 360; 
     return `hsl(${hue}, 85%, 60%)`;
 }
 
-// Traveling Blob Component
-// Traveling Blob Component
 const TravelingBlob: React.FC<{
-    blob: BlobData & { serverId: number, targetHash: number };
+    blob: BlobData & { serverId: number, targetHash: number, startHash?: number };
     radius: number;
     center: number;
     onComplete: () => void;
 }> = ({ blob, radius, center, onComplete }) => {
     
-    // We animate a value "degree" from startHash to endHash
-    // and map that degree to x/y coordinates.
-    // This avoids all SVG rotation origin complexity.
-
-    const startAngle = blob.hash;
+    const startAngle = blob.startHash ?? blob.hash;
     let endAngle = blob.targetHash;
     
-    // Ensure clockwise movement
     if (endAngle < startAngle) {
         endAngle += 360;
     }
 
-    // Motion values for the animation
     const degree = useMotionValue(startAngle);
     const opacity = useMotionValue(0);
     const scale = useMotionValue(0);
 
-    // Coordinate transforms
-    // Note: radian = (degree - 90) * PI / 180
     const x = useTransform(degree, (d: number) => center + (radius - 35) * Math.cos((d - 90) * (Math.PI / 180)));
     const y = useTransform(degree, (d: number) => center + (radius - 35) * Math.sin((d - 90) * (Math.PI / 180)));
-    
-    // Text is slightly above the blob
     const textY = useTransform(y, (currY: number) => currY - 14);
 
     React.useEffect(() => {
-        // Sequence: Appear -> Wait -> Move -> Disappear
         const sequence = async () => {
-            // 1. Appear
             await Promise.all([
                 animate(opacity, 1, { duration: 0.3 }),
                 animate(scale, 1, { duration: 0.3, type: "spring" })
             ]);
             
-            // 2. Wait
             await new Promise(resolve => setTimeout(resolve, 300));
 
-            // 3. Travel
             await animate(degree, endAngle, { 
                 duration: 2, 
                 ease: "easeInOut" 
             });
 
-            // 4. Disappear (shrink into node)
             await Promise.all([
                 animate(opacity, 0, { duration: 0.2 }),
                 animate(scale, 0.5, { duration: 0.2 })
@@ -206,7 +177,7 @@ const TravelingBlob: React.FC<{
         };
 
         sequence();
-    }, []); // Run once on mount
+    }, []);
 
     return (
         <motion.g>

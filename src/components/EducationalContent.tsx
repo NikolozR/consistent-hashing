@@ -20,7 +20,7 @@ export const EducationalContent: React.FC = () => {
         <section>
           <h3 className="font-semibold text-cyan-400 mb-2 uppercase tracking-wider text-xs">The Ring</h3>
           <p className="text-slate-400 leading-relaxed">
-            Servers and Data are mapped to a 360° circle. Data belongs to the first server found moving <strong className="text-slate-200">clockwise</strong>.
+            Nodes are <strong className="text-slate-200">evenly distributed</strong> around a 360° circle. Data is hashed onto the ring and belongs to the first node found moving <strong className="text-slate-200">clockwise</strong>.
           </p>
         </section>
 
@@ -32,9 +32,9 @@ export const EducationalContent: React.FC = () => {
         </section>
 
         <section>
-          <h3 className="font-semibold text-cyan-400 mb-2 uppercase tracking-wider text-xs">The Golden Ratio (φ)</h3>
+          <h3 className="font-semibold text-cyan-400 mb-2 uppercase tracking-wider text-xs">Even Distribution</h3>
           <p className="text-slate-400 leading-relaxed">
-             We multiply IDs by a large constant derived from the Golden Ratio (<strong className="text-slate-200">φ</strong>). This scatters sequential numbers (1, 2, 3...) far apart on the ring, preventing clustering.
+             Nodes are placed by dividing the ring into <strong className="text-slate-200">equal slots</strong>. When servers are added or removed, all positions are recalculated to maintain perfectly even spacing.
           </p>
         </section>
 

@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Consistent Hashing — Interactive Simulator
+
+An interactive visualization of **Consistent Hashing**, the algorithm behind distributed systems like DynamoDB, Cassandra, and load balancers.
+
+Add servers, insert data, and watch the hash ring rebalance in real-time with smooth animations.
+
+## Features
+
+- **Hash Ring Visualization** — 360° ring with animated node placement and data routing
+- **Live Redistribution** — See data migrate between servers when nodes are added or removed
+- **Virtual Nodes** — Configurable virtual node count for even load distribution
+- **FNV-1a Hashing** — Data points are hashed using an FNV-1a variant for uniform distribution
+- **Even Node Placement** — Server nodes are deterministically spread at equal intervals
+- **Error Handling** — Inline toast notifications for duplicate entries
+- **Responsive Design** — Works on desktop and mobile
+
+## Tech Stack
+
+- **Next.js** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- **Framer Motion** — Ring animations and blob travel effects
+- **Custom BST** — Binary Search Tree for efficient hash lookups
+
+## Architecture
+
+```
+src/
+├── lib/consistent-hashing/
+│   ├── BST.ts                 # Binary Search Tree for the hash ring
+│   ├── ConsistentHashing.ts   # Core algorithm (add/remove servers, hash, rebalance)
+│   └── Server.ts              # Server and BlobData models
+├── hooks/
+│   └── useConsistentHashing.ts # React state wrapper around the CH engine
+├── components/
+│   ├── RingVisualization.tsx   # SVG ring with animated nodes and traveling blobs
+│   ├── Controls.tsx            # Add server/data inputs with error toasts
+│   ├── ServerInventory.tsx     # Real-time server stats panel
+│   └── EducationalContent.tsx  # Quick guide section
+└── app/
+    ├── layout.tsx              # Root layout with meta tags
+    └── page.tsx                # Main page composition
+```
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How It Works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **The Ring**: A 360° circle where both servers and data are mapped
+2. **Adding a Server**: Virtual nodes are placed at evenly-spaced positions around the ring
+3. **Adding Data**: Data is hashed (FNV-1a) to a position on the ring, then assigned to the first server node found clockwise
+4. **Rebalancing**: When servers are added/removed, only affected data migrates — most data stays put
 
-## Learn More
+## License
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

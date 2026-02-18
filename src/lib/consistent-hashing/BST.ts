@@ -1,5 +1,5 @@
 export class Node<T> {
-    key: number; // The hash value (0-359)
+    key: number;
     value: T;
     left: Node<T> | null = null;
     right: Node<T> | null = null;
@@ -53,7 +53,6 @@ export class BST<T> {
             return node;
         }
 
-        // Node found
         if (!node.left && !node.right) {
             return null;
         }
@@ -66,7 +65,6 @@ export class BST<T> {
             return node.left;
         }
 
-        // Node with two children: Get the inorder successor (smallest in the right subtree)
         const minRight = this.findMinNode(node.right);
         node.key = minRight.key;
         node.value = minRight.value;
@@ -90,7 +88,6 @@ export class BST<T> {
         return current;
     }
 
-    // Find the smallest node with key >= targetKey (Successor in circular space logic handles wrap-around externally usually, but strictly speaking this finds in-tree successor)
     findSuccessor(key: number): Node<T> | null {
         let successor: Node<T> | null = null;
         let current = this.root;

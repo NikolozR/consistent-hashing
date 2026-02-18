@@ -1,30 +1,56 @@
 "use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { ConsistentHashing } from '@/lib/consistent-hashing/ConsistentHashing';
-import { Server, BlobData } from '@/lib/consistent-hashing/Server';
+import { Server } from '@/lib/consistent-hashing/Server';
 
-// We need a wrapper to force React re-renders since the CH class manages its own state
+export type ErrorInfo = {
+    message: string;
+    type: 'node' | 'data';
+};
+
 export function useConsistentHashing() {
     const [ch] = useState(() => new ConsistentHashing());
     const [servers, setServers] = useState<Server[]>([]);
     const [virtualNodes, setVirtualNodes] = useState<{ hash: number, serverId: number }[]>([]);
-    const [version, setVersion] = useState(0); // Tick to force update
+    const [globalWeight, setGlobalWeightState] = useState(1);
+    const [version, setVersion] = useState(0);
+    const [error, setError] = useState<ErrorInfo | null>(null);
+    const [animationEpoch, setAnimationEpoch] = useState(0);
+    const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const showError = useCallback((message: string, type: 'node' | 'data') => {
+        if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+        setError({ message, type });
+        errorTimerRef.current = setTimeout(() => setError(null), 4000);
+    }, []);
+
+    const clearError = useCallback(() => {
+        if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+        setError(null);
+    }, []);
 
     const refreshState = useCallback(() => {
-        setServers([...ch.getAllServers()]); // Spread to create new reference
+        setServers([...ch.getAllServers()]);
         setVirtualNodes(ch.getAllVirtualNodes());
+        setGlobalWeightState(ch.globalWeight);
         setVersion(v => v + 1);
     }, [ch]);
 
-    const addServer = useCallback((id: number, weight?: number) => {
+    const setGlobalWeight = useCallback((weight: number) => {
+        ch.setGlobalWeight(weight);
+        setAnimationEpoch(e => e + 1);
+        refreshState();
+    }, [ch, refreshState]);
+
+    const addServer = useCallback((id: number) => {
         try {
-            ch.addServer(new Server(id, weight));
+            ch.addServer(new Server(id));
             refreshState();
         } catch (e: any) {
-            alert(e.message);
+            showError(e.message, 'node');
         }
-    }, [ch, refreshState]);
+    }, [ch, refreshState, showError]);
 
     const removeServer = useCallback((id: number) => {
         ch.removeServer(id);
@@ -32,9 +58,13 @@ export function useConsistentHashing() {
     }, [ch, refreshState]);
 
     const addBlob = useCallback((data: string) => {
-        ch.addBlob(data);
-        refreshState();
-    }, [ch, refreshState]);
+        try {
+            ch.addBlob(data);
+            refreshState();
+        } catch (e: any) {
+            showError(e.message, 'data');
+        }
+    }, [ch, refreshState, showError]);
 
     const removeBlob = useCallback((data: string) => {
         ch.removeBlob(data);
@@ -44,10 +74,15 @@ export function useConsistentHashing() {
     return {
         servers,
         virtualNodes,
+        globalWeight,
         addServer,
         removeServer,
         addBlob,
         removeBlob,
-        version
+        setGlobalWeight,
+        version,
+        error,
+        clearError,
+        animationEpoch
     };
 }

@@ -10,7 +10,6 @@ interface ServerInventoryProps {
 }
 
 export const ServerInventory: React.FC<ServerInventoryProps> = ({ servers }) => {
-  // Simple hash-to-color for consistency (duplicated helper for now)
   const getServerColor = (id: number) => {
     const hue = (id * 137.508) % 360;
     return `hsl(${hue}, 70%, 50%)`;
@@ -47,7 +46,7 @@ export const ServerInventory: React.FC<ServerInventoryProps> = ({ servers }) => 
                   <span className="font-bold text-sm text-slate-200">Node {server.id}</span>
                 </div>
                 <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                   {server.blobs.length} Items
+                   {server.blobs.length} {server.blobs.length === 1 ? 'Item' : 'Items'}
                 </span>
               </div>
               

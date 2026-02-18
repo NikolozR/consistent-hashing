@@ -3,8 +3,10 @@ import { Server, BlobData } from './Server';
 
 export class ConsistentHashing {
     serverBST: BST<Server>;
-    servers: Map<number, Server>; // Keep track of all real servers by ID
-    virtualNodesMap: Map<number, Server>; // Map hash to real server instance
+    servers: Map<number, Server>;
+    virtualNodesMap: Map<number, Server>;
+
+    globalWeight: number = 1;
 
     constructor() {
         this.serverBST = new BST<Server>();
@@ -12,15 +14,13 @@ export class ConsistentHashing {
         this.virtualNodesMap = new Map();
     }
 
-    // Helper hash function for arbitrary strings to 0-359
     hash(input: string): number {
-        let hash = 0;
+        let hash = 2166136261;
         for (let i = 0; i < input.length; i++) {
-            const char = input.charCodeAt(i);
-            hash = (hash << 5) - hash + char;
-            hash = hash & hash;
+            hash ^= input.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
         }
-        return Math.abs(hash) % 360;
+        return (hash >>> 0) % 360;
     }
 
     addServer(server: Server): void {
@@ -28,64 +28,34 @@ export class ConsistentHashing {
             throw new Error(`Server with ID ${server.id} already exists.`);
         }
 
+        server.weight = this.globalWeight;
         this.servers.set(server.id, server);
-
-        // Add virtual nodes
-        for (let i = 0; i < server.weight; i++) {
-            // Create a unique identifier for the virtual node to hash
-            const virtualNodeId = `${server.id}-VN-${i}`;
-            const hash = this.hash(virtualNodeId);
-
-            // Handle collision resolution simply for simulation: linear probe
-            let finalHash = hash;
-            while (this.virtualNodesMap.has(finalHash)) {
-                finalHash = (finalHash + 1) % 360;
-            }
-
-            this.virtualNodesMap.set(finalHash, server);
-            this.serverBST.insert(finalHash, server);
-
-            this.rebalanceAfterAdd(finalHash, server);
-        }
+        this.redistributeAllNodes();
     }
 
     removeServer(serverId: number): void {
         const server = this.servers.get(serverId);
         if (!server) return;
 
-        // Remove all virtual nodes
-        // We need to find all keys in virtualNodesMap that point to this server
-        const hashesToRemove: number[] = [];
-        this.virtualNodesMap.forEach((s, hash) => {
-            if (s.id === serverId) {
-                hashesToRemove.push(hash);
-            }
-        });
-
-        hashesToRemove.forEach(hash => {
-            // Before removing, redistribute blobs
-            this.rebalanceBeforeRemove(hash, server);
-
-            this.virtualNodesMap.delete(hash);
-            this.serverBST.delete(hash);
-        });
-
         this.servers.delete(serverId);
+        this.redistributeAllNodes();
     }
 
     addBlob(data: string): void {
+        for (const server of this.servers.values()) {
+            if (server.blobs.some(b => b.id === data)) {
+                throw new Error(`Data "${data}" already exists in the ring.`);
+            }
+        }
+
         const hash = this.hash(data);
         const blob: BlobData = { id: data, hash };
-
-        // Check if duplicate blob data already exists to prevent confusion? 
-        // Or just allow it. Consistent hashing usually handles identical keys identically.
 
         const targetServer = this.getServerForHash(hash);
         if (targetServer) {
             targetServer.addBlob(blob);
         } else {
-            // No servers in the ring
-            console.warn("No servers available to store blob");
+            throw new Error("No servers available. Add a node first.");
         }
     }
 
@@ -97,14 +67,11 @@ export class ConsistentHashing {
         }
     }
 
-    // Core logic: Find the server for a given hash
     getServerForHash(hash: number): Server | null {
         if (this.serverBST.root === null) return null;
 
-        // Find successor
         let node = this.serverBST.findSuccessor(hash);
 
-        // Wrap around: if no successor (hash > all node hashes), use min
         if (!node) {
             node = this.serverBST.findMin();
         }
@@ -112,7 +79,6 @@ export class ConsistentHashing {
         return node ? node.value : null;
     }
 
-    // Helper to find the specific Node (not just Server value) responsible
     private getResponsibleNode(hash: number): Node<Server> | null {
         if (this.serverBST.root === null) return null;
         let node = this.serverBST.findSuccessor(hash);
@@ -121,23 +87,16 @@ export class ConsistentHashing {
     }
 
     private rebalanceAfterAdd(newNodeHash: number, newServer: Server) {
-        // Find successor of the new node (which is actually the node that currently holds the keys that might need to move)
-        // Since we just inserted newNode, finding successor of newNodeHash will return newNode itself.
-        // We need the NEXT node in the ring.
         let successorNode = this.serverBST.findSuccessor((newNodeHash + 1) % 360);
         if (!successorNode) successorNode = this.serverBST.findMin();
 
-        if (!successorNode || successorNode.value === newServer) return; // Only one server or same server
+        if (!successorNode || successorNode.value === newServer) return;
 
         const successorServer = successorNode.value;
         const blobsToMove: BlobData[] = [];
         const keptBlobs: BlobData[] = [];
 
-        // We need to check all blobs in the successor server
-        // And move those that should now belong to the new node
         successorServer.blobs.forEach(blob => {
-            // Calculate which server this blob *should* belong to now
-            // We can use getServerForHash, effectively simulating the "new state" logic
             const responsibleNode = this.getResponsibleNode(blob.hash);
             if (responsibleNode && responsibleNode.value === newServer) {
                 blobsToMove.push(blob);
@@ -151,14 +110,9 @@ export class ConsistentHashing {
     }
 
     private rebalanceBeforeRemove(nodeHashToRemove: number, serverToRemove: Server) {
-        // "Move the BLOBs from theta into its successor server."
-        // We are removing a specific Virtual Node (VN) at `nodeHashToRemove`.
-        // The blobs that mapped to this specific VN now need to go to the successor of this VN.
-
         let successorNode = this.serverBST.findSuccessor((nodeHashToRemove + 1) % 360);
         if (!successorNode) successorNode = this.serverBST.findMin();
 
-        // If the successor is the same node (only 1 node left), user is clearing the last node.
         if (!successorNode) return;
 
         const targetServer = successorNode.value;
@@ -168,12 +122,8 @@ export class ConsistentHashing {
             const movingBlobs: BlobData[] = [];
 
             serverToRemove.blobs.forEach(blob => {
-                // Check if this blob was actually mapping to the VN we are removing.
                 const responsibleNode = this.getResponsibleNode(blob.hash);
 
-                // If the blob maps to the VN we are removing, it must move.
-                // Note: getResponsibleNode runs against the BST. The node `nodeHashToRemove` is STILL in the BST.
-                // So if the blob belongs to it, `responsibleNode.key` will equal `nodeHashToRemove`.
                 if (responsibleNode && responsibleNode.key === nodeHashToRemove) {
                     movingBlobs.push(blob);
                 } else {
@@ -186,7 +136,6 @@ export class ConsistentHashing {
         }
     }
 
-    // Getters for UI
     getAllServers(): Server[] {
         return Array.from(this.servers.values());
     }
@@ -198,5 +147,46 @@ export class ConsistentHashing {
             nodes.push({ hash: node.key, serverId: node.value.id });
         });
         return nodes;
+    }
+
+    setGlobalWeight(weight: number): void {
+        if (weight < 1) return;
+        this.globalWeight = weight;
+
+        this.servers.forEach(server => {
+            server.weight = weight;
+        });
+
+        this.redistributeAllNodes();
+    }
+
+    private redistributeAllNodes(): void {
+        const allBlobs: string[] = [];
+        this.servers.forEach(server => {
+            server.blobs.forEach(b => allBlobs.push(b.id));
+            server.blobs = [];
+        });
+
+        this.virtualNodesMap.clear();
+        this.serverBST = new BST<Server>();
+
+        const sortedServers = Array.from(this.servers.values()).sort((a, b) => a.id - b.id);
+        if (sortedServers.length === 0) return;
+
+        const weight = this.globalWeight;
+        const totalVirtualNodes = sortedServers.length * weight;
+        const slotSize = 360 / totalVirtualNodes;
+
+        for (let i = 0; i < totalVirtualNodes; i++) {
+            const hash = Math.round(i * slotSize) % 360;
+            const server = sortedServers[i % sortedServers.length];
+
+            this.virtualNodesMap.set(hash, server);
+            this.serverBST.insert(hash, server);
+        }
+
+        allBlobs.forEach(data => {
+            this.addBlob(data);
+        });
     }
 }
