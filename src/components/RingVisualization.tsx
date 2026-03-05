@@ -7,10 +7,9 @@ import { Server, BlobData } from '@/lib/consistent-hashing/Server';
 interface RingVisualizationProps {
   servers: Server[];
   virtualNodes: { hash: number, serverId: number }[];
-  animationEpoch?: number;
 }
 
-export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, virtualNodes, animationEpoch = 0 }) => {
+export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, virtualNodes }) => {
   const radius = 180;
   const center = 250;
   
@@ -29,42 +28,39 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
      return servers.flatMap(s => s.blobs.map(b => ({ ...b, serverId: s.id })));
   }, [servers]);
 
-  const getTargetHash = (blobHash: number, sId: number) => {
-      let targetNode = virtualNodes.find(vn => vn.hash >= blobHash && vn.serverId === sId);
-      if (!targetNode) {
-          const sortedNodes = [...virtualNodes].sort((a, b) => a.hash - b.hash);
-          const found = sortedNodes.find(vn => vn.hash >= blobHash);
-          targetNode = found || sortedNodes[0];
-      }
-      return targetNode?.hash || 0;
+  // Find the virtual node responsible for this blob (next clockwise node from the blob's hash)
+  const getTargetHash = (blobHash: number) => {
+      const sortedNodes = [...virtualNodes].sort((a, b) => a.hash - b.hash);
+      // Find the first virtual node at or after the blob's hash position
+      const found = sortedNodes.find(vn => vn.hash >= blobHash);
+      // Wrap around to the first node if none found (ring wraparound)
+      const targetNode = found || sortedNodes[0];
+      return targetNode?.hash ?? 0;
   };
 
-  const prevEpochRef = React.useRef(animationEpoch);
+  const prevEpochRef = React.useRef(0);
+  void prevEpochRef; // kept for potential future suppression logic
 
   React.useEffect(() => {
     const currentBlobsMap = new Map<string, { serverId: number, targetHash: number }>();
-
-    const suppressAnimation = prevEpochRef.current !== animationEpoch;
-    prevEpochRef.current = animationEpoch;
-
     const newTravelingBlobs: (BlobData & { serverId: number, targetHash: number, startHash?: number })[] = [];
 
     allBlobs.forEach(blob => {
-        const targetHash = getTargetHash(blob.hash, blob.serverId);
+        const targetHash = getTargetHash(blob.hash);
         currentBlobsMap.set(blob.id, { serverId: blob.serverId, targetHash });
 
-        if (!suppressAnimation) {
-            const prevData = prevBlobsMapRef.current.get(blob.id);
+        const prevData = prevBlobsMapRef.current.get(blob.id);
 
-            if (!prevData) {
-                newTravelingBlobs.push({ ...blob, targetHash });
-            } else if (prevData.serverId !== blob.serverId) {
-                newTravelingBlobs.push({ 
-                    ...blob, 
-                    targetHash, 
-                    startHash: prevData.targetHash 
-                });
-            }
+        if (!prevData) {
+            // New blob: appear at its hash position and travel to the responsible node
+            newTravelingBlobs.push({ ...blob, targetHash });
+        } else if (prevData.serverId !== blob.serverId) {
+            // Blob moved to a new server: start from its own hash position
+            newTravelingBlobs.push({ 
+                ...blob, 
+                targetHash, 
+                startHash: blob.hash
+            });
         }
     });
 
@@ -73,7 +69,7 @@ export const RingVisualization: React.FC<RingVisualizationProps> = ({ servers, v
     }
     
     prevBlobsMapRef.current = currentBlobsMap;
-  }, [allBlobs, virtualNodes, animationEpoch]);
+  }, [allBlobs, virtualNodes]);
 
   const removeTravelingBlob = (id: string) => {
     setTravelingBlobs(prev => prev.filter(b => b.id !== id));

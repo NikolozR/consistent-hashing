@@ -16,7 +16,6 @@ export function useConsistentHashing() {
     const [globalWeight, setGlobalWeightState] = useState(1);
     const [version, setVersion] = useState(0);
     const [error, setError] = useState<ErrorInfo | null>(null);
-    const [animationEpoch, setAnimationEpoch] = useState(0);
     const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const showError = useCallback((message: string, type: 'node' | 'data') => {
@@ -39,7 +38,6 @@ export function useConsistentHashing() {
 
     const setGlobalWeight = useCallback((weight: number) => {
         ch.setGlobalWeight(weight);
-        setAnimationEpoch(e => e + 1);
         refreshState();
     }, [ch, refreshState]);
 
@@ -83,6 +81,5 @@ export function useConsistentHashing() {
         version,
         error,
         clearError,
-        animationEpoch
     };
 }

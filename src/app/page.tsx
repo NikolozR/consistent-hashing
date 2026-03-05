@@ -18,7 +18,6 @@ export default function Home() {
     setGlobalWeight,
     error,
     clearError,
-    animationEpoch
   } = useConsistentHashing();
 
   return (
@@ -70,7 +69,6 @@ export default function Home() {
                 <RingVisualization 
                     servers={servers} 
                     virtualNodes={virtualNodes}
-                    animationEpoch={animationEpoch}
                 />
              </div>
 

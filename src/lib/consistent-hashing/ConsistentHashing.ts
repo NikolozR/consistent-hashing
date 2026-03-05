@@ -37,8 +37,12 @@ export class ConsistentHashing {
         const server = this.servers.get(serverId);
         if (!server) return;
 
+        // Collect blob IDs from the removed server BEFORE deleting it,
+        // so they can be redistributed to the remaining servers.
+        const evictedBlobIds = server.blobs.map(b => b.id);
+
         this.servers.delete(serverId);
-        this.redistributeAllNodes();
+        this.redistributeAllNodes(evictedBlobIds);
     }
 
     addBlob(data: string): void {
@@ -160,13 +164,15 @@ export class ConsistentHashing {
         this.redistributeAllNodes();
     }
 
-    private redistributeAllNodes(): void {
-        const allBlobs: string[] = [];
+    private redistributeAllNodes(extraBlobIds: string[] = []): void {
+        // Collect blob IDs from all remaining servers, then clear them.
+        const allBlobIds: string[] = [...extraBlobIds];
         this.servers.forEach(server => {
-            server.blobs.forEach(b => allBlobs.push(b.id));
+            server.blobs.forEach(b => allBlobIds.push(b.id));
             server.blobs = [];
         });
 
+        // Rebuild the BST and virtual node map from scratch.
         this.virtualNodesMap.clear();
         this.serverBST = new BST<Server>();
 
@@ -185,7 +191,8 @@ export class ConsistentHashing {
             this.serverBST.insert(hash, server);
         }
 
-        allBlobs.forEach(data => {
+        // Re-insert all blobs (including evicted ones) so they land on remaining servers.
+        allBlobIds.forEach(data => {
             this.addBlob(data);
         });
     }
